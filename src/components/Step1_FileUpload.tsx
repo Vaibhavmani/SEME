@@ -67,59 +67,49 @@ export const Step1_FileUpload: React.FC<Step1Props> = ({ onWorkbookParsed }) => 
     }
 
     // Merge multiple workbooks into unified master batch model
-    if (parsedWorkbooks.length === 1) {
-      const singleWb = parsedWorkbooks[0];
-      for (const sName of Object.keys(singleWb.mediaAnchorsBySheet)) {
-        singleWb.mediaAnchorsBySheet[sName] = singleWb.mediaAnchorsBySheet[sName].map(a => ({
+    const masterSheets: ParsedWorkbook['sheets'] = [];
+    const masterAnchorsBySheet: ParsedWorkbook['mediaAnchorsBySheet'] = {};
+    let totalBytes = 0;
+
+    for (const wb of parsedWorkbooks) {
+      totalBytes += wb.sizeBytes;
+      for (const sheet of wb.sheets) {
+        const wbCleanName = wb.filename.substring(0, wb.filename.lastIndexOf('.')) || wb.filename;
+        const uniqueSheetName = `${wbCleanName} / ${sheet.name}`;
+
+        const decoratedSampleRows = sheet.sampleRows.map(r => ({
+          ...r,
+          _sheetName: uniqueSheetName,
+          _workbookName: wb.filename,
+        }));
+
+        const decoratedSheet = {
+          ...sheet,
+          name: uniqueSheetName,
+          sampleRows: decoratedSampleRows,
+        };
+        masterSheets.push(decoratedSheet);
+
+        const sheetAnchors = wb.mediaAnchorsBySheet[sheet.name] || [];
+        masterAnchorsBySheet[uniqueSheetName] = sheetAnchors.map(a => ({
           ...a,
-          sheetName: sName,
-          workbookName: singleWb.filename,
+          sheetName: uniqueSheetName,
+          workbookName: wb.filename,
         }));
       }
-      onWorkbookParsed(singleWb);
-    } else {
-      const masterSheets: ParsedWorkbook['sheets'] = [];
-      const masterAnchorsBySheet: ParsedWorkbook['mediaAnchorsBySheet'] = {};
-      let totalBytes = 0;
-
-      for (const wb of parsedWorkbooks) {
-        totalBytes += wb.sizeBytes;
-        for (const sheet of wb.sheets) {
-          const wbCleanName = wb.filename.substring(0, wb.filename.lastIndexOf('.')) || wb.filename;
-          const uniqueSheetName = `${wbCleanName} / ${sheet.name}`;
-
-          const decoratedSampleRows = sheet.sampleRows.map(r => ({
-            ...r,
-            _sheetName: uniqueSheetName,
-            _workbookName: wb.filename,
-          }));
-
-          const decoratedSheet = {
-            ...sheet,
-            name: uniqueSheetName,
-            sampleRows: decoratedSampleRows,
-          };
-          masterSheets.push(decoratedSheet);
-
-          const sheetAnchors = wb.mediaAnchorsBySheet[sheet.name] || [];
-          masterAnchorsBySheet[uniqueSheetName] = sheetAnchors.map(a => ({
-            ...a,
-            sheetName: uniqueSheetName,
-            workbookName: wb.filename,
-          }));
-        }
-      }
-
-      const mergedWb: ParsedWorkbook = {
-        filename: `Batch Queue (${parsedWorkbooks.length} Workbooks)`,
-        sizeBytes: totalBytes,
-        sheets: masterSheets,
-        mediaAnchorsBySheet: masterAnchorsBySheet,
-        rawZipFiles: {},
-      };
-
-      onWorkbookParsed(mergedWb);
     }
+
+    const mergedWb: ParsedWorkbook = {
+      filename: parsedWorkbooks.length === 1
+        ? parsedWorkbooks[0].filename
+        : `Batch Queue (${parsedWorkbooks.length} Workbooks)`,
+      sizeBytes: totalBytes,
+      sheets: masterSheets,
+      mediaAnchorsBySheet: masterAnchorsBySheet,
+      rawZipFiles: {},
+    };
+
+    onWorkbookParsed(mergedWb);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
