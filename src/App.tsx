@@ -36,8 +36,8 @@ export function App() {
   // Workbook parsed handler
   const handleWorkbookParsed = (wb: ParsedWorkbook) => {
     setWorkbook(wb);
-    const sheetsWithImages = wb.sheets.filter(s => s.hasImages).map(s => s.name);
-    const defaultSheets = sheetsWithImages.length > 0 ? sheetsWithImages : wb.sheets.map(s => s.name);
+    // Select ALL sheets by default so columns from all sheets/workbooks are fetched and displayed
+    const defaultSheets = wb.sheets.map(s => s.name);
     setSelectedSheetNames(defaultSheets);
 
     // Aggregate ALL anchors across ALL selected sheets
@@ -49,11 +49,11 @@ export function App() {
 
     // Automatically select ALL unique media columns present across any sheet/workbook
     const imageCols = Array.from(new Set(allAnchors.map(a => a.colName)));
-    const firstSheetHeaders = wb.sheets[0]?.headers || [];
-    setSelectedMediaColumns(imageCols.length > 0 ? imageCols : firstSheetHeaders.slice(0, 2));
+    const allHeaders = Array.from(new Set(wb.sheets.flatMap(s => s.headers)));
+    setSelectedMediaColumns(imageCols.length > 0 ? imageCols : allHeaders.slice(0, 2));
 
     // Preset tokens matching specs
-    setTokens(getDefaultPatternTokens(firstSheetHeaders));
+    setTokens(getDefaultPatternTokens(allHeaders));
     setCurrentStep(2);
   };
 
@@ -68,11 +68,11 @@ export function App() {
       });
 
       const imageCols = Array.from(new Set(allAnchors.map(a => a.colName)));
-      const firstSheet = workbook.sheets.find(s => sheetNames.includes(s.name)) || workbook.sheets[0];
-      setSelectedMediaColumns(imageCols.length > 0 ? imageCols : (firstSheet?.headers.slice(0, 2) || []));
-      if (firstSheet) {
-        setTokens(getDefaultPatternTokens(firstSheet.headers));
-      }
+      const selectedSheets = workbook.sheets.filter(s => sheetNames.includes(s.name));
+      const aggregatedHeaders = Array.from(new Set(selectedSheets.flatMap(s => s.headers)));
+
+      setSelectedMediaColumns(imageCols.length > 0 ? imageCols : aggregatedHeaders.slice(0, 2));
+      setTokens(getDefaultPatternTokens(aggregatedHeaders));
     }
   };
 

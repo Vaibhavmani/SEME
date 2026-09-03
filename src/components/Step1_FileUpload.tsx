@@ -88,16 +88,23 @@ export const Step1_FileUpload: React.FC<Step1Props> = ({ onWorkbookParsed }) => 
           const wbCleanName = wb.filename.substring(0, wb.filename.lastIndexOf('.')) || wb.filename;
           const uniqueSheetName = `${wbCleanName} / ${sheet.name}`;
 
+          const decoratedSampleRows = sheet.sampleRows.map(r => ({
+            ...r,
+            _sheetName: uniqueSheetName,
+            _workbookName: wb.filename,
+          }));
+
           const decoratedSheet = {
             ...sheet,
             name: uniqueSheetName,
+            sampleRows: decoratedSampleRows,
           };
           masterSheets.push(decoratedSheet);
 
           const sheetAnchors = wb.mediaAnchorsBySheet[sheet.name] || [];
           masterAnchorsBySheet[uniqueSheetName] = sheetAnchors.map(a => ({
             ...a,
-            sheetName: sheet.name,
+            sheetName: uniqueSheetName,
             workbookName: wb.filename,
           }));
         }

@@ -57,7 +57,25 @@ export const Step4_PatternBuilder: React.FC<Step4Props> = ({
   };
 
   // Generate live sample previews for up to 5 anchors
-  const sampleAnchors = anchors.slice(0, 5);
+  React.useEffect(() => {
+    if (sheet.headers.length > 0 && (!selectedHeaderToAdd || !sheet.headers.includes(selectedHeaderToAdd))) {
+      setSelectedHeaderToAdd(sheet.headers[0]);
+    }
+  }, [sheet.headers]);
+
+  // Pick representative sample anchors from each sheet/workbook
+  const sampleAnchors: ExtractedMediaAnchor[] = [];
+  const anchorsBySheetMap = new Map<string, ExtractedMediaAnchor[]>();
+  anchors.forEach(a => {
+    const key = a.sheetName || a.workbookName || 'Sheet';
+    const list = anchorsBySheetMap.get(key) || [];
+    list.push(a);
+    anchorsBySheetMap.set(key, list);
+  });
+  anchorsBySheetMap.forEach(list => {
+    sampleAnchors.push(...list.slice(0, 3));
+  });
+  const displaySampleAnchors = sampleAnchors.length > 0 ? sampleAnchors : anchors.slice(0, 6);
 
   return (
     <div className="space-y-6">
@@ -271,15 +289,23 @@ export const Step4_PatternBuilder: React.FC<Step4Props> = ({
       <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-3">
         <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-2">
           <Eye className="w-4 h-4 text-emerald-400" />
-          Live Sample Preview (Actual Generated Filenames)
+          Live Sample Preview (Actual Generated Filenames Across All Sheets)
         </h3>
 
-        {sampleAnchors.length === 0 ? (
+        {displaySampleAnchors.length === 0 ? (
           <p className="text-xs text-slate-500 italic">No media anchors found for selected columns.</p>
         ) : (
           <div className="space-y-2">
-            {sampleAnchors.map((anchor, idx) => {
-              const rowObj = sheet.sampleRows.find(r => r._rowNumber === anchor.row) || {};
+            {displaySampleAnchors.map((anchor, idx) => {
+              const rowObj = sheet.sampleRows.find(r =>
+                r._rowNumber === anchor.row &&
+                r._sheetName === anchor.sheetName &&
+                r._workbookName === anchor.workbookName
+              ) || sheet.sampleRows.find(r =>
+                r._rowNumber === anchor.row &&
+                (r._sheetName === anchor.sheetName || r._workbookName === anchor.workbookName)
+              ) || sheet.sampleRows.find(r => r._rowNumber === anchor.row) || {};
+
               const generated = evaluateFilenamePattern(tokens, rowObj, anchor, anchor.colName);
 
               return (
@@ -288,7 +314,7 @@ export const Step4_PatternBuilder: React.FC<Step4Props> = ({
                   className="flex items-center justify-between p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono"
                 >
                   <div className="flex items-center space-x-3">
-                    <span className="text-slate-500">Row {anchor.row} ({anchor.cellRef}):</span>
+                    <span className="text-slate-500">{anchor.sheetName || anchor.workbookName || 'Sheet'} — Row {anchor.row} ({anchor.cellRef}):</span>
                     <span className="text-emerald-400 font-semibold">{generated}</span>
                   </div>
                   <span className="text-slate-400 text-[11px] font-sans bg-slate-800 px-2 py-0.5 rounded">

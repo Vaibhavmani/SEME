@@ -3,6 +3,7 @@ import { sanitizeFilename } from '../security/sanitizer';
 
 /**
  * Evaluates a list of pattern tokens against a specific Excel row object and media anchor.
+ * Supports multi-workbook schema fallbacks so different workbooks produce clean, rich filenames.
  */
 export function evaluateFilenamePattern(
   tokens: PatternToken[],
@@ -15,7 +16,32 @@ export function evaluateFilenamePattern(
   for (const token of tokens) {
     switch (token.type) {
       case 'column': {
-        const val = rowObj[token.value];
+        let val = rowObj[token.value];
+
+        // Intelligent multi-workbook column fallback when workbooks have different header schemas
+        if (val === undefined || val === null || String(val).trim() === '') {
+          const targetLower = token.value.toLowerCase();
+          // Attempt exact/fuzzy match across current row's available columns
+          const altKey = Object.keys(rowObj).find(k => {
+            if (k.startsWith('_')) return false;
+            const kLower = k.toLowerCase();
+            if (targetLower.includes('case') || targetLower.includes('record') || targetLower.includes('id')) {
+              return kLower.includes('case') || kLower.includes('record') || kLower.includes('id') || kLower.includes('index');
+            }
+            if (targetLower.includes('date') || targetLower.includes('time')) {
+              return kLower.includes('date') || kLower.includes('time');
+            }
+            if (targetLower.includes('video') || targetLower.includes('camera') || targetLower.includes('source')) {
+              return kLower.includes('video') || kLower.includes('camera') || kLower.includes('source') || kLower.includes('site');
+            }
+            return false;
+          });
+
+          if (altKey && rowObj[altKey] !== undefined) {
+            val = rowObj[altKey];
+          }
+        }
+
         const strVal = (val !== undefined && val !== null) ? String(val) : '';
         parts.push(strVal);
         break;
@@ -25,7 +51,6 @@ export function evaluateFilenamePattern(
         break;
       }
       case 'mediaType': {
-        // Derive media type token (e.g., 'Detected Face' -> 'detected', or explicit token.value)
         const val = token.value || mediaColumnName;
         const normalized = val.toLowerCase().includes('face')
           ? 'detected'
@@ -52,7 +77,15 @@ export function evaluateFilenamePattern(
     }
   }
 
-  const rawStem = parts.join('').trim() || `media_row${anchor.row}`;
+  // Fallback to rich stem incorporating workbook name/row if all column tokens evaluated to empty
+  let rawStem = parts.join('').trim();
+  if (!rawStem || rawStem === '_' || /^_+$/.test(rawStem)) {
+    const wbClean = anchor.workbookName
+      ? anchor.workbookName.substring(0, anchor.workbookName.lastIndexOf('.')) || anchor.workbookName
+      : 'Workbook';
+    rawStem = `${wbClean}_Row${anchor.row}_${mediaColumnName}`;
+  }
+
   const sanitizedStem = sanitizeFilename(rawStem, `media_row${anchor.row}`);
   return `${sanitizedStem}.${anchor.ext}`;
 }
@@ -64,8 +97,8 @@ export function evaluateFilenamePattern(
 export function getDefaultPatternTokens(headers: string[]): PatternToken[] {
   const tokens: PatternToken[] = [];
 
-  const indexHeader = headers.find(h => /^index$/i.test(h.trim())) || headers[0];
-  const videoHeader = headers.find(h => /video/i.test(h.trim()));
+  const indexHeader = headers.find(h => /^index$/i.test(h.trim()) || /id/i.test(h.trim())) || headers[0];
+  const videoHeader = headers.find(h => /video|camera|site/i.test(h.trim()));
   const dateHeader = headers.find(h => /date|time/i.test(h.trim()));
 
   if (indexHeader) {

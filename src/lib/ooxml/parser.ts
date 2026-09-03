@@ -314,7 +314,11 @@ export async function parseExcelWorkbook(
 
     for (const rIdx of dataRowIndices) {
       const rowDataMap = rowMap.get(rIdx)!;
-      const rowObj: Record<string, any> = { _rowNumber: rIdx };
+      const rowObj: Record<string, any> = {
+        _rowNumber: rIdx,
+        _sheetName: entry.name,
+        _workbookName: filename,
+      };
       for (let c = 1; c <= headers.length; c++) {
         const hName = headers[c - 1];
         rowObj[hName] = rowDataMap.get(c) ?? '';
@@ -425,6 +429,8 @@ export async function parseExcelWorkbook(
                         mimeType: getMimeType(ext),
                         zipEntry,
                         anchorType: anchor.type,
+                        sheetName: entry.name,
+                        workbookName: filename,
                       });
                     }
                   }
